@@ -1,10 +1,36 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from app.api.v1.profiles import router
 
 
 app = FastAPI()
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    # Check if 'name' is missing or empty in the errors
+    for error in exc.errors():
+        if "name" in error.get("loc", []):
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Missing or empty name"},
+            )
+    return JSONResponse(
+        status_code=422,
+        content={"status": "error", "message": "Invalid type"},
+    )
+
+
+@app.exception_handler(404)
+async def not_found_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={"status": "error", "message": "Profile not found"},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -14,9 +40,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
+app.include_router(router, prefix="/api", tags=["Profiles"])
 
 app.get("/")
+
+
 def root():
     return {"message": "Welcome to the HNG Stage One API"}
 

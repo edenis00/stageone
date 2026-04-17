@@ -30,25 +30,35 @@ class ProfileService:
         )
 
     async def fetch_external_data(self, name: str):
-        try:
-            async with httpx.AsyncClient() as client:
-                gender_task = client.get(GENDERIZE_URL, params={"name": name})
-                age_task = client.get(AGIFY_URL, params={"name": name})
-                country_task = client.get(NATIONALIZE_URL, params={"name": name})
-
-                gender_res, age_res, country_res = await asyncio.gather(
-                    gender_task, age_task, country_task
+        async with httpx.AsyncClient() as client:
+            try:
+                gender_res = await client.get(GENDERIZE_URL, params={"name": name})
+                gender_res.raise_for_status()
+                gender_data = gender_res.json()
+            except Exception:
+                return self.error_message(
+                    code=502, message="Genderize returned an invalid response"
                 )
 
-            gender_res.raise_for_status()
-            age_res.raise_for_status()
-            country_res.raise_for_status()
+            try:
+                age_res = await client.get(AGIFY_URL, params={"name": name})
+                age_res.raise_for_status()
+                age_data = age_res.json()
+            except Exception:
+                return self.error_message(
+                    code=502, message="Agify returned an invalid response"
+                )
 
-            return gender_res.json(), age_res.json(), country_res.json()
-        except httpx.RequestError:
-            raise Exception("Upstream API failure")
-        except httpx.HTTPStatusError:
-            raise Exception("Upstream API failure")
+            try:
+                country_res = await client.get(NATIONALIZE_URL, params={"name": name})
+                country_res.raise_for_status()
+                country_data = country_res.json()
+            except Exception:
+                return self.error_message(
+                    code=502, message="Nationalize returned an invalid response"
+                )
+
+            return gender_data, age_data, country_data
 
     async def create_profile(self, payload: ProfileCreate):
         name = payload.name.strip().lower()
@@ -61,13 +71,14 @@ class ProfileService:
             return {
                 "status": "success",
                 "message": "Profile already exists",
-                "data": existing_profile
+                "data": existing_profile,
             }
 
-        try:
-            gender, age, country = await self.fetch_external_data(name)
-        except Exception as e:
-            return self.error_message(code=503, message=str(e))
+        api_result = await self.fetch_external_data(name)
+        if isinstance(api_result, JSONResponse):
+            return api_result
+
+        gender, age, country = api_result
 
         if gender.get("gender") is None or gender.get("count") == 0:
             return self.error_message(
@@ -80,8 +91,7 @@ class ProfileService:
             )
 
         countries = country.get("country")
-
-        if not countries:
+        if not countries or len(countries) == 0:
             return self.error_message(
                 code=502, message="Nationalize returned an invalid response"
             )
@@ -153,11 +163,7 @@ class ProfileService:
 
         profiles = query.all()
 
-        return {
-            "status": "success", 
-            "count": len(profiles), 
-            "data": profiles
-        }
+        return {"status": "success", "count": len(profiles), "data": profiles}
 
     def delete_profile(self, id: str):
 
