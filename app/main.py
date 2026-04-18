@@ -32,6 +32,14 @@ async def not_found_exception_handler(request, exc):
     )
 
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "message": "Internal server error"},
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,9 +50,8 @@ app.add_middleware(
 
 app.include_router(router, prefix="/api", tags=["Profiles"])
 
-app.get("/")
 
-
+@app.get("/")
 def root():
     return {"message": "Welcome to the HNG Stage One API"}
 

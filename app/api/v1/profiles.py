@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.profiles import (
@@ -22,6 +23,11 @@ async def create_profile(
 ):
     service = ProfileService(db)
     result = await service.create_profile(payload)
+
+    # If the service returned a JSONResponse (error), return it directly
+    if isinstance(result, JSONResponse):
+        return result
+
     if result.get("message") == "Profile already exists":
         response.status_code = status.HTTP_200_OK
     else:
@@ -38,15 +44,21 @@ def get_all_profiles(
     db: Session = Depends(get_db),
 ):
     service = ProfileService(db)
-    return service.list_profiles(
+    result = service.list_profiles(
         gender=gender, country_id=country_id, age_group=age_group
     )
+    if isinstance(result, JSONResponse):
+        return result
+    return result
 
 
 @router.get("/profiles/{profile_id}", response_model=ProfileSuccessResponse)
 def get_profile_by_id(profile_id: str, db: Session = Depends(get_db)):
     service = ProfileService(db)
-    return service.get_profile(profile_id)
+    result = service.get_profile(profile_id)
+    if isinstance(result, JSONResponse):
+        return result
+    return result
 
 
 @router.delete("/profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
