@@ -6,13 +6,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.api.v1.profiles import router
 from app.db.session import engine, Base
-from app.models.profiles import Profile  # noqa: F401 — ensure model is registered
+from app.models.profiles import Profile
+from seed import seed
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Create all tables on startup if they don't exist
     Base.metadata.create_all(bind=engine)
+    # Seed the database
+    seed()
     yield
 
 

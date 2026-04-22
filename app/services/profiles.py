@@ -1,3 +1,4 @@
+import re
 import asyncio
 import httpx
 from fastapi import Query
@@ -7,7 +8,7 @@ from datetime import datetime, timezone
 
 from app.models.profiles import Profile
 from app.db.session import get_db
-from app.schemas.profiles import ProfileCreate
+from app.schemas.profiles import ProfileCreate, SortBy, Order, ProfileSchema
 from app.core.config import settings
 
 
@@ -146,8 +147,16 @@ class ProfileService:
     def list_profiles(
         self,
         gender: str | None = None,
-        country_id: str | None = None,
         age_group: str | None = None,
+        country_id: str | None = None,
+        min_age: int | None = None,
+        max_age: int | None = None,
+        min_gender_probability: float | None = None,
+        min_country_probability: float | None = None,
+        sort_by: SortBy | None = None,
+        order: Order | None = None,
+        page: int = 1,
+        limit: int = 10,
     ):
 
         query = self.db.query(Profile)
@@ -161,9 +170,53 @@ class ProfileService:
         if age_group:
             query = query.filter(Profile.age_group.ilike(age_group))
 
-        profiles = query.all()
+        if country_id:
+            query = query.filter(Profile.country_id.ilike(country_id))
 
-        return {"status": "success", "count": len(profiles), "data": profiles}
+        if min_age:
+            query = query.filter(Profile.age >= min_age)
+
+        if max_age:
+            query = query.filter(Profile.age <= max_age)
+
+        if min_gender_probability:
+            query = query.filter(Profile.gender_probability >= min_gender_probability)
+
+        if min_country_probability:
+            query = query.filter(Profile.country_probability >= min_country_probability)
+
+        if sort_by:
+            sorted_fields = {
+                "age": Profile.age,
+                "created_at": Profile.created_at,
+                "gender_probability": Profile.gender_probability,
+            }
+
+            column = sorted_fields.get(sort_by)
+
+            if column is not None:
+                if order == "desc":
+                    query = query.order_by(column.desc())
+                else:
+                    query = query.order_by(column.asc())
+
+        total = query.count()
+
+        limit = min(limit, 50)
+
+        offset = (page - 1) * limit
+
+        profiles = query.offset(offset).limit(limit).all()
+
+        profiles = [ProfileSchema.model_validate(p) for p in profiles]
+
+        return {
+            "status": "success",
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "data": profiles,
+        }
 
     def delete_profile(self, id: str):
 
@@ -176,3 +229,46 @@ class ProfileService:
         self.db.commit()
 
         return {"status": "success", "message": "Profile deleted"}
+
+    def natural_query(self, query: str):
+        q = query.lower()
+        filters = {}
+
+        if "male" in q or "males" in q:
+            filters["gender"] = "male"
+
+        if "female" in q or "females" in q:
+            filters["gender"] = "female"
+
+        if "teenager" in q or "teenagers" in q:
+            filters["age_group"] = "teenager"
+
+        if "adult" in q or "adults" in q:
+            filters["age_group"] = "adult"
+
+        if "young" in q:
+            filters["min_age"] = 16
+            filters["max_age"] = 24
+
+        match = re.search(r"above (\d+)", q)
+        if match:
+            filters["min_age"] = int(match.group(1))
+
+        match = re.search(r"below (\d+)", q)
+        if match:
+            filters["max_age"] = int(match.group(1))
+
+        country_map = {
+            "nigeria": "NG",
+            "ghana": "GH",
+            "kenya": "KE",
+        }
+
+        for country_name, country_code in country_map.items():
+            if country_name in q:
+                filters["country_id"] = country_code
+
+        if not filters:
+            return None
+
+        return filters
