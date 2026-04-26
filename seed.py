@@ -14,7 +14,6 @@ from app.models.profiles import Profile
 
 
 def seed():
-    # Ensure the table exists
     Base.metadata.create_all(bind=engine)
 
     seed_file = Path(__file__).resolve().parent / "seed_profiles.json"

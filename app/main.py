@@ -12,9 +12,7 @@ from seed import seed
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create all tables on startup if they don't exist
     Base.metadata.create_all(bind=engine)
-    # Seed the database
     seed()
     yield
 
@@ -24,7 +22,6 @@ app = FastAPI(lifespan=lifespan)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    # Check if 'name' is missing or empty in the errors
     for error in exc.errors():
         if "name" in error.get("loc", []):
             return JSONResponse(
