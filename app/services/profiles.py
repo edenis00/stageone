@@ -202,7 +202,7 @@ class ProfileService:
 
         total = query.count()
 
-        limit = min(limit, 50)
+        limit = max(10, min(limit, 50))
 
         offset = (page - 1) * limit
 
