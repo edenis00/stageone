@@ -1,6 +1,7 @@
 import re
 import asyncio
 import httpx
+import pycountry
 from fastapi import Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -90,7 +91,6 @@ class ProfileService:
             return self.error_message(
                 code=502, message="Agify returned an invalid response"
             )
-
         countries = country.get("country")
         if not countries or len(countries) == 0:
             return self.error_message(
@@ -98,6 +98,9 @@ class ProfileService:
             )
 
         best_country = max(countries, key=lambda x: x["probability"])
+        country_code = best_country["country_id"]
+        country_obj = pycountry.countries.get(alpha_2=country_code)
+        country_name = country_obj.name if country_obj else country_code
 
         age_value = age["age"]
         age_group = ""
@@ -121,7 +124,8 @@ class ProfileService:
             sample_size=gender["count"],
             age=age_value,
             age_group=age_group,
-            country_id=best_country["country_id"],
+            country_id=country_code,
+            country_name=country_name,
             country_probability=best_country["probability"],
         )
 
@@ -239,6 +243,9 @@ class ProfileService:
 
         if "female" in q or "females" in q:
             filters["gender"] = "female"
+        
+        if "child" in q or "children" in q:
+            filters["age_group"] = "child"
 
         if "teenager" in q or "teenagers" in q:
             filters["age_group"] = "teenager"
@@ -249,6 +256,9 @@ class ProfileService:
         if "young" in q:
             filters["min_age"] = 16
             filters["max_age"] = 24
+        
+        if "senior" in q:
+            filters["age_group"] = "senior"
 
         match = re.search(r"above (\d+)", q)
         if match:
@@ -258,15 +268,10 @@ class ProfileService:
         if match:
             filters["max_age"] = int(match.group(1))
 
-        country_map = {
-            "nigeria": "NG",
-            "ghana": "GH",
-            "kenya": "KE",
-        }
-
-        for country_name, country_code in country_map.items():
-            if country_name in q:
-                filters["country_id"] = country_code
+        for country in pycountry.countries:
+            if country.name.lower() in q:
+                filters["country_id"] = country.alpha_2
+                break
 
         if not filters:
             return None
