@@ -1,6 +1,8 @@
 import re
 import asyncio
 import httpx
+import csv
+import io
 import pycountry
 from fastapi import Query
 from fastapi.responses import JSONResponse
@@ -213,12 +215,20 @@ class ProfileService:
         profiles = query.offset(offset).limit(limit).all()
 
         profiles = [ProfileSchema.model_validate(p) for p in profiles]
+        
+        total_pages = (total + limit - 1) // limit
 
         return {
             "status": "success",
             "page": page,
             "limit": limit,
             "total": total,
+            "total_pages": total_pages,
+            "links": {
+                "self": f"/api/profiles?page={page}&limit={limit}",
+                "next": f"/api/profiles?page={page + 1}&limit={limit}" if (page *  limit)  < total else None,
+                "prev": f"/api/profiles?page={page - 1}&limt={limit}" if page > 1 else None,
+            },
             "data": profiles,
         }
 
@@ -277,3 +287,81 @@ class ProfileService:
             return None
 
         return filters
+
+    def export_profile_to_csv(
+        self,
+        gender: str | None = None,
+        age_group: str | None = None,
+        country_id: str | None = None,
+        min_age: int | None = None,
+        max_age: int | None = None,
+        sort_by=None,
+        order=None,
+    ):
+        query = self.db.query(Profile)
+        
+        if gender:
+            query = query.filter(Profile.gender.ilike(gender))
+
+        if country_id:
+            query = query.filter(Profile.country_id.ilike(country_id))
+
+        if age_group:
+            query = query.filter(Profile.age_group.ilike(age_group))
+
+        if min_age:
+            query = query.filter(Profile.age >= min_age)
+
+        if max_age:
+            query = query.filter(Profile.age <= max_age)
+
+        if sort_by:
+            sorted_fields = {
+                "age": Profile.age,
+                "created_at": Profile.created_at,
+                "gender_probability": Profile.gender_probability,
+            }
+
+            column = sorted_fields.get(sort_by)
+
+            if column is not None:
+                query = query.order_by(column.desc() if order == "desc" else column.asc())
+
+        profiles = query.all()
+        
+        # Csv buffer
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        writer.writerow([            
+            "id",
+            "name",
+            "gender",
+            "gender_probability",
+            "age",
+            "age_group",
+            "country_id",
+            "country_name",
+            "country_probability",
+            "created_at",
+        ])
+        
+        for p in profiles:
+            writer.writerow([
+                p.id,
+                p.name,
+                p.gender,
+                p.gender_probability,
+                p.age,
+                p.age_group,
+                p.country_id,
+                p.country_name,
+                p.country_probability,
+                p.created_at,
+            ])
+    
+        output.seek(0)
+        
+        filename = f"profiles_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.csv"
+        
+        return output, filename
