@@ -1,12 +1,15 @@
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from app.api.v1.profiles import router
+from app.api.v1.profiles import router as profile_router
+from app.api.v1.auth import router as auth_router
 from app.db.session import engine, Base
-from app.models.profiles import Profile
+from app.middleware.versioning import api_version_middleware
+from app.middleware.logging import logging_middleware
+from app.middleware.rate_limits import rate_limit_middleware
 from seed import seed
 
 
@@ -19,6 +22,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.middleware("http")(logging_middleware)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(api_version_middleware)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -50,6 +56,16 @@ async def global_exception_handler(request, exc):
     )
 
 
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "error",
+            "message": exc.detail
+        },
+    )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -58,13 +74,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api", tags=["Profiles"])
+app.include_router(profile_router, prefix="/api", tags=["Profiles"])
+app.include_router(auth_router)
 
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to the HNG Stage One API"}
+    return {"message": "Welcome to the HNG Stage Three  API"}
 
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
