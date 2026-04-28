@@ -41,7 +41,7 @@ async def github_login():
         key="pkce_code_verifier",
         value=code_verifier,
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
     )
 
