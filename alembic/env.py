@@ -7,6 +7,8 @@ from sqlalchemy import pool
 from alembic import context
 from dotenv import load_dotenv
 from app.models.profiles import Profile
+from app.models.auth import RefreshToken
+from app.models.users import User
 from app.db.session import Base
 
 load_dotenv()

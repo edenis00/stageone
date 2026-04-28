@@ -7,6 +7,8 @@ from typing import List
 
 from enum import Enum
 
+from fastapi import Query
+
 
 class ProfileCreate(BaseModel):
     name: str
@@ -47,20 +49,31 @@ class ProfileListResponse(BaseModel):
     page: int
     limit: int
     total: int
+    total_pages: int
+    links: dict
     data: List[ProfileSchema]
 
 
 class SortBy(str, Enum):
-
     age = "age"
-
     created_at = "created_at"
-
     gender_probability = "gender_probability"
 
 
 class Order(str, Enum):
-
     asc = "asc"
-
     desc = "desc"
+
+
+class ProfileFilterParams(BaseModel):
+    gender: str | None = None
+    age_group: str | None = None
+    country_id: str | None = None
+    min_age: int | None = None
+    max_age: int | None = None
+    min_gender_probability: float | None = None
+    min_country_probability: float | None = None
+    sort_by: SortBy | None = None
+    order: Order | None = None
+    page: int = Query(default=1, ge=1)
+    limit: int = Query(default=10, ge=1, le=100)
