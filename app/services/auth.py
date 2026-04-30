@@ -152,7 +152,7 @@ class Auth:
                     "client_secret": settings.GITHUB_CLIENT_SECRET,
                     "code": code,
                     "redirect_uri": settings.GITHUB_REDIRECT_URI,
-                    "code_verifier": code_verifier,  # PKCE
+                    "code_verifier": code_verifier,
                 },
             )
 

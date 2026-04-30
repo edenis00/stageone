@@ -47,6 +47,15 @@ async def github_login():
 
     return response
 
+@router.post("/github/callback")
+async def github_callback_cli(
+    code: str,
+    code_verifier: str,
+    db: Session = Depends(get_db),
+):
+    service = Auth(db)
+    return await service.github_callback(code, code_verifier)
+
 
 @router.get("/github/callback")
 async def github_callback(
