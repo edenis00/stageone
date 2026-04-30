@@ -70,13 +70,6 @@ def verify_token(token: str):
             detail="Token expired",
         )
 
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid token",
-        )
-
-
 
 class Auth:
     def __init__(self, db: Session):
@@ -142,7 +135,9 @@ class Auth:
         self,
         code: str,
         code_verifier: str,
+        redirect_uri: str = None,
     ):
+        final_redirect_uri = redirect_uri or settings.GITHUB_REDIRECT_URI
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://github.com/login/oauth/access_token",
@@ -151,11 +146,11 @@ class Auth:
                     "client_id": settings.GITHUB_CLIENT_ID,
                     "client_secret": settings.GITHUB_CLIENT_SECRET,
                     "code": code,
-                    "redirect_uri": settings.GITHUB_REDIRECT_URI,
+                    "redirect_uri": final_redirect_uri,
                     "code_verifier": code_verifier,
                 },
             )
-
+        print(response.text)
         if response.status_code != 200:
             raise HTTPException(
                 status_code=400,
