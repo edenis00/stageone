@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.auth import Auth
 from app.core.config import settings
+from app.schemas.auth import OAuthRequest
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -49,13 +50,11 @@ async def github_login():
 
 @router.post("/github/callback")
 async def github_callback_cli(
-    code: str,
-    code_verifier: str,
+    oauth_request: OAuthRequest,
     db: Session = Depends(get_db),
 ):
     service = Auth(db)
-    return await service.github_callback(code, code_verifier)
-
+    return await service.github_callback(oauth_request.code, oauth_request.code_verifier)
 
 @router.get("/github/callback")
 async def github_callback(
